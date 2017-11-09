@@ -1,3 +1,9 @@
 #!/usr/bin/env bash
 
-docker run --rm -ti -v "$PWD":/go/src/github.com/fravega/kafka-http -w /go/src/github.com/fravega/kafka-http golang:1.8 go get -t -u ./... '&&' go test -i -v -x .
+SRC=/go/src/github.com/fravega/kafka-http
+
+docker run --rm -ti \
+    -v "$PWD":${SRC} \
+    -w ${SRC} \
+    golang:1.9.1 \
+    /bin/bash -c 'go get -t -v ./... && go test -i -v -x .'
