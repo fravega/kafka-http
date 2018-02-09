@@ -1,12 +1,15 @@
 package main
 
 import (
-  log "github.com/sirupsen/logrus"
-  "net/http"
-  "github.com/ant0ine/go-json-rest/rest"
-  "strconv"
-  "os"
-  "fmt"
+	"fmt"
+	"github.com/ant0ine/go-json-rest/rest"
+	"github.com/bshuster-repo/logrus-logstash-hook"
+	log "github.com/sirupsen/logrus"
+	"net"
+	"net/http"
+	"os"
+	"strconv"
+	"strings"
 )
 
 const AppName = "APP_NAME"
@@ -18,69 +21,67 @@ const BrokerEnv = "BROKER"
 var Environment  string
 
 func main() {
-  defer func() {
-    log.Info("Done everything")
-    if x := recover(); x != nil {
-      log.WithField("error", x).Error("Run time panic")
-    }
-  }()
+	defer func() {
+		log.Info("Done everything")
+		if x := recover(); x != nil {
+			log.WithField("error", x).Error("Run time panic")
+		}
+	}()
 
-  Environment = getStrEnv(EnvironmentEnv, "development")
-  initLogger()
+	Environment = getStrEnv(EnvironmentEnv, "development")
+	initLogger()
 
-  log.Info("Starting ...")
+	log.Info("Starting ...")
 
-  broker := getStrEnv(BrokerEnv, "localhost:1111")
-  port := getIntEnv(PortEnv, 7075)
+	broker := getStrEnv(BrokerEnv, "localhost:9092")
+	port := getIntEnv(PortEnv, 7075)
 
-  var repository Repository
-  repository, err := NewKafkaRepository(broker)
+	var repository Repository
+	repository, err := NewKafkaRepository(broker)
 
-  if err != nil {
-    log.Panic(err.Error())
-    os.Exit(1)
-  }
+	if err != nil {
+		log.Panic(err.Error())
+		os.Exit(1)
+	}
 
-  controller := NewController(repository)
+	controller := NewController(repository)
 
-  statusMw := &rest.StatusMiddleware{}
+	statusMw := &rest.StatusMiddleware{}
 
-  systemStat := NewSystemController(repository, statusMw)
+	systemStat := NewSystemController(repository, statusMw)
 
-  stack := [] rest.Middleware{
-    &AccessLogMiddleware{ Logger: log.StandardLogger(), IgnoredPathPrefix: "/system" },
-    //      Format: rest.CombinedLogFormat,
-    &rest.TimerMiddleware{},
-    &rest.RecorderMiddleware{},
-    &rest.RecoverMiddleware{
-      EnableResponseStackTrace: true,
-    },
-    &rest.JsonIndentMiddleware{},
-    &rest.ContentTypeCheckerMiddleware{},
-    &rest.GzipMiddleware{},
-  }
+	stack := []rest.Middleware{
+		&AccessLogMiddleware{Logger: log.StandardLogger(), IgnoredPathPrefix: "/system"},
+		//      Format: rest.CombinedLogFormat,
+		&rest.TimerMiddleware{},
+		&rest.RecorderMiddleware{},
+		&rest.RecoverMiddleware{
+			EnableResponseStackTrace: true,
+		},
+		&rest.JsonIndentMiddleware{},
+		&rest.ContentTypeCheckerMiddleware{},
+		&rest.GzipMiddleware{},
+	}
 
-  api := rest.NewApi()
+	api := rest.NewApi()
 
-  api.Use(statusMw)
+	api.Use(statusMw)
 
-  api.Use(stack...)
+	api.Use(stack...)
 
-  routes := append(controller.Routes, systemStat.Routes...)
+	routes := append(controller.Routes, systemStat.Routes...)
 
-  router, err := rest.MakeRouter(routes...)
+	router, err := rest.MakeRouter(routes...)
 
-  if err != nil {
-    log.Fatal(err)
-  }
-  api.SetApp(router)
+	if err != nil {
+		log.Fatal(err)
+	}
+	api.SetApp(router)
 
-  http.Handle("/api/", http.StripPrefix("/api", api.MakeHandler()))
+	http.Handle("/api/", http.StripPrefix("/api", api.MakeHandler()))
 
   log.
     WithFields(log.Fields{"app": APP_NAME, "version": VERSION, "port": port, "broker": broker}).
     Info(fmt.Sprintf("Started %v v%v on port %v with %v broker", APP_NAME, VERSION, port, broker))
   log.Fatal(http.ListenAndServe(":" + strconv.Itoa(port), nil))
 }
-
-

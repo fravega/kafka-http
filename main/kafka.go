@@ -5,45 +5,56 @@ import (
 )
 
 type KafkaRepository struct {
-  Broker    string
-  producer  *kafka.Producer
+	Broker   string
+	producer *kafka.Producer
+	channel  chan kafka.Event
 }
 
-
 func NewKafkaRepository(broker string) (Repository, error) {
-  p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": broker})
+	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": broker})
+	if err != nil {
+		return KafkaRepository{}, err
+	}
+	deliveryChan := make(chan kafka.Event)
 
-  if err != nil {
-    return nil, err
-  }
+	kr := KafkaRepository{
+		Broker:   broker,
+		producer: p,
+		channel:  deliveryChan,
+	}
 
-  kr := KafkaRepository{
-    Broker : broker,
-    producer : p,
-  }
-
-  return kr, nil
+	return kr, nil
 }
 
 func (r KafkaRepository) Push(topic string, message []byte) error {
-  r.producer.ProduceChannel() <- &kafka.Message{
-    TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny},
-    Value: message,
-    }
+	err := r.producer.Produce(&kafka.Message{TopicPartition: kafka.TopicPartition{Topic: &topic, Partition: kafka.PartitionAny}, Value: message}, r.channel)
+	if err != nil {
+		return err
+	}
+
+	e := <-r.channel
+	m := e.(*kafka.Message)
+
+	return m.TopicPartition.Error
 }
 
 type KafkaRepositoryStats struct {
-  Status    string
+	Status string
 }
 
 func (r KafkaRepository) Stat() interface{} {
-  s := KafkaRepositoryStats{
-    "Ok",
-  }
+	s := KafkaRepositoryStats{
+		"Ok",
+	}
 
-  return s
+	return s
 }
 
 func (r KafkaRepository) Close() {
-  r.producer.Close()
+	r.producer.Close()
+}
+
+func (r KafkaRepository) Health() error {
+	//TODO: Check health
+	return nil
 }
