@@ -1,8 +1,7 @@
 package main
 
 import (
-
-"github.com/confluentinc/confluent-kafka-go/kafka"
+  "github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 type KafkaRepository struct {
@@ -15,7 +14,7 @@ func NewKafkaRepository(broker string) (Repository, error) {
   p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": broker})
 
   if err != nil {
-    return p, err
+    return nil, err
   }
 
   kr := KafkaRepository{

@@ -59,7 +59,7 @@ RUN apk update && apk upgrade && \
     apk add librdkafka-dev && apk add pkgconfig && \
     apk add --no-cache  python && \
     apk add --no-cache  gcc g++ && apk add --no-cache  pkgconfig && apk add --no-cache build-base
-# RUN git clone https://github.com/edenhill/librdkafka.git
+# RUN git clone https://github.com/edenhill/librdkafka.git,
 
 #WORKDIR librdkafka
 #RUN ./configure --prefix /usr && make && make install
@@ -67,13 +67,13 @@ RUN apk update && apk upgrade && \
 ENV SRC /go/src/github/fravega/akka-http
 
 ADD main $SRC
-COPY ./app /refs
-RUN cd $SRC && go get ./... && GOOS=linux go build -o /refs/pricerefs
+COPY ./app /build
+RUN cd $SRC && go get ./... && GOOS=linux go build -o /build/kafka-http
 
 # final stage
 FROM base
-RUN apk update && apk upgrade &&  apk add librdkafka-dev
+RUN apk update && apk upgrade && apk add librdkafka-dev
 WORKDIR /app
 # copy binary into image
-COPY --from=build-env /refs /app/
-CMD ./pricerefs $BROKER $GROUP $TOPIC
+COPY --from=build-env /build /app/
+CMD ./kafka-http
